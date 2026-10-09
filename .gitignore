@@ -1,0 +1,9 @@
+data/
+runs/
+__pycache__/
+*.egg-info/
+.ipynb_checkpoints/
+.pytest_cache/
+.DS_Store
+.idea/
+.venv/
