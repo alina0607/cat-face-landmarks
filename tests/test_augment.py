@@ -1,6 +1,14 @@
 import torch
 
-from catlandmarks.augment import apply, move_points, random_resized_crop
+from catlandmarks.augment import (
+    apply,
+    centre_crop,
+    identity,
+    is_mirrored,
+    move_points,
+    random_face_crop,
+    random_resized_crop,
+)
 
 
 def test_identity_map_resizes_the_whole_image():
@@ -34,3 +42,29 @@ def test_moved_points_follow_the_pixels_they_mark():
             continue
         found = torch.stack([(xs * m).sum() / m.sum(), (ys * m).sum() / m.sum()])
         torch.testing.assert_close(found, moved[i], atol=0.2, rtol=0)
+
+
+def test_face_crops_have_the_requested_size_and_mirror_half_the_time():
+    theta = random_face_crop(4000, face=0.5, zoom=(1.0, 2.0), gen=torch.Generator().manual_seed(2))
+    half_width = theta[:, :, :2].det().abs().sqrt()
+    assert half_width.min() >= 0.5 - 1e-5 and half_width.max() <= 1.0 + 1e-5
+    assert 0.45 < is_mirrored(theta).float().mean() < 0.55
+
+
+def test_turned_face_crops_move_points_with_the_pixels():
+    gen = torch.Generator().manual_seed(3)
+    images = torch.zeros(6, 1, 80, 80)
+    points = torch.tensor([[[30.0, 50.0]]]).repeat(6, 1, 1)
+    images[:, 0, 49:52, 29:32] = 1
+    theta = random_face_crop(6, face=0.5, zoom=(1.2, 1.6), turn_deg=30, gen=gen)
+    out = apply(images, theta, 64)
+    moved = move_points(points, theta, 80, 64)[:, 0]
+    ys, xs = torch.meshgrid(torch.arange(64.0), torch.arange(64.0), indexing="ij")
+    for i in range(6):
+        m = out[i, 0]
+        found = torch.stack([(xs * m).sum() / m.sum(), (ys * m).sum() / m.sum()])
+        torch.testing.assert_close(found, moved[i], atol=0.2, rtol=0)
+
+
+def test_centre_crop_of_the_whole_image_is_the_identity():
+    torch.testing.assert_close(centre_crop(2, face=0.5, zoom=2.0), identity(2))

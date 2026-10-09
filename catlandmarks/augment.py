@@ -35,6 +35,36 @@ def random_resized_crop(n: int, scale=(0.25, 1.0), ratio=(3 / 4, 4 / 3), flip: b
     return theta
 
 
+def random_face_crop(n: int, face: float, zoom=(1.0, 2.0), turn_deg: float = 25.0, shift: float = 0.1,
+                     flip: bool = True, gen: torch.Generator | None = None) -> torch.Tensor:
+    """(n, 2, 3) maps for square crops around a face centred in the image, whose side is `face` of the image's.
+
+    Each crop is `zoom` face sides wide (uniform), turned by up to ±`turn_deg`, moved by up to `shift` of its
+    side in each direction, and mirrored with probability ½. Callers that move landmarks through a mirrored map
+    must also swap left and right landmarks (`landmarks.FLIP_PERMUTATION`).
+    """
+    k = _uniform(n, *zoom, gen) * face                               # half-width, normalised units
+    a = torch.deg2rad(_uniform(n, -turn_deg, turn_deg, gen))
+    t = torch.stack([_uniform(n, -1, 1, gen), _uniform(n, -1, 1, gen)], 1) * (shift * 2 * k)[:, None]
+    sx = torch.where(torch.rand(n, generator=gen) < 0.5, -1.0, 1.0) if flip else torch.ones(n)
+    theta = torch.zeros(n, 2, 3)
+    theta[:, 0, 0], theta[:, 0, 1] = k * a.cos() * sx, -k * a.sin()
+    theta[:, 1, 0], theta[:, 1, 1] = k * a.sin() * sx, k * a.cos()
+    theta[:, :, 2] = t
+    return theta
+
+
+def centre_crop(n: int, face: float, zoom: float) -> torch.Tensor:
+    """(n, 2, 3) maps for the square `zoom` face sides wide around the image's centre, unturned."""
+    theta = identity(n)
+    theta[:, 0, 0] = theta[:, 1, 1] = zoom * face
+    return theta
+
+
+def is_mirrored(theta: torch.Tensor) -> torch.Tensor:
+    return torch.linalg.det(theta[:, :, :2]) < 0
+
+
 def identity(n: int) -> torch.Tensor:
     """(n, 2, 3) maps that keep the whole image: `apply` with them only resizes."""
     return torch.tensor([[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]]).repeat(n, 1, 1)
