@@ -4,7 +4,7 @@ import zipfile
 import numpy as np
 from PIL import Image
 
-from catlandmarks.prepare import prepare_cat, split_indices
+from catlandmarks.prepare import prepare_afhq, prepare_cat, split_indices
 
 
 def test_split_is_a_seeded_partition():
@@ -36,3 +36,16 @@ def test_prepare_writes_crops_with_landmarks_on_the_face(tmp_path):
         assert grey[y, x] > 60                                     # each landmark sits on its dot
     assert info["faces"] == 1
     assert json.loads((tmp_path / "cache" / "info.json").read_text())["context"] == 1.5
+
+
+def test_prepare_afhq_keeps_the_official_split_and_resizes(tmp_path):
+    for split, n in [("train", 3), ("test", 2)]:
+        (tmp_path / split / "cat").mkdir(parents=True)
+        for i in range(n):
+            Image.new("RGB", (512, 512), (40 * i, 0, 0)).save(tmp_path / split / "cat" / f"{split}_{i}.png")
+    info = prepare_afhq(tmp_path, tmp_path / "cache", size=32)
+    splits = np.load(tmp_path / "cache" / "splits.npz")
+    ids = (tmp_path / "cache" / "ids.txt").read_text().split()
+    assert np.load(tmp_path / "cache" / "images.npy").shape == (5, 32, 32, 3)
+    assert [ids[i] for i in splits["test"]] == ["test/cat/test_0.png", "test/cat/test_1.png"]
+    assert info["splits"] == {"train": 3, "test": 2}
