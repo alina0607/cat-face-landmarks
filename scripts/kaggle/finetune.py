@@ -19,6 +19,7 @@ from pathlib import Path
 EPOCHS = 100
 RUN_NAME = "pose_scratch"           # "pose_mae" for the MAE-initialised run
 USE_MAE_ENCODER = False             # True: start from the attached encoder.pt
+TURN_DEG = 25.0                     # largest training rotation either way
 
 code = Path("/kaggle/working/src")
 code.mkdir(parents=True, exist_ok=True)
@@ -39,7 +40,7 @@ out = Path("/kaggle/working") / RUN_NAME
 print(json.dumps({"torch": torch.__version__, "gpu": torch.cuda.get_device_name(0), "cache": str(cache),
                   "encoder": str(encoder)}), flush=True)
 
-cfg = FinetuneConfig(cache=str(cache), epochs=EPOCHS)
+cfg = FinetuneConfig(cache=str(cache), epochs=EPOCHS, turn_deg=TURN_DEG)
 start = time.time()
 train(cfg, out, encoder)
 print(json.dumps({"epochs": EPOCHS, "minutes": round((time.time() - start) / 60, 1),
