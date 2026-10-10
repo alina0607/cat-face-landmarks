@@ -9,6 +9,7 @@ and the same maps move landmarks exactly.
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
 import torch
 import torch.nn.functional as F
@@ -18,8 +19,8 @@ def _uniform(n: int, lo: float, hi: float, gen: torch.Generator | None) -> torch
     return lo + (hi - lo) * torch.rand(n, generator=gen)
 
 
-def random_resized_crop(n: int, scale=(0.25, 1.0), ratio=(3 / 4, 4 / 3), flip: bool = True,
-                        gen: torch.Generator | None = None) -> torch.Tensor:
+def random_resized_crop(n: int, scale: tuple[float, float] = (0.25, 1.0), ratio: tuple[float, float] = (3 / 4, 4 / 3),
+                        flip: bool = True, gen: torch.Generator | None = None) -> torch.Tensor:
     """(n, 2, 3) maps for crops covering `scale` of the image's area with aspect ratio in `ratio` (log-uniform),
     placed uniformly inside the image, mirrored with probability ½ (Szegedy et al., 2015; as in MAE)."""
     area = _uniform(n, *scale, gen)
@@ -35,18 +36,29 @@ def random_resized_crop(n: int, scale=(0.25, 1.0), ratio=(3 / 4, 4 / 3), flip: b
     return theta
 
 
-def random_face_crop(n: int, face: float, zoom=(1.0, 2.0), turn_deg: float = 25.0, shift: float = 0.1,
-                     flip: bool = True, gen: torch.Generator | None = None) -> torch.Tensor:
+@dataclass(frozen=True)
+class FaceCropSpec:
+    """How far random face crops may vary: width in face sides, turn, shift (share of the crop's side), mirroring."""
+
+    zoom: tuple[float, float] = (1.0, 2.0)
+    turn_deg: float = 25.0
+    shift: float = 0.1
+    flip: bool = True
+
+
+def random_face_crop(n: int, face: float, spec: FaceCropSpec | None = None,
+                     gen: torch.Generator | None = None) -> torch.Tensor:
     """(n, 2, 3) maps for square crops around a face centred in the image, whose side is `face` of the image's.
 
-    Each crop is `zoom` face sides wide (uniform), turned by up to ±`turn_deg`, moved by up to `shift` of its
-    side in each direction, and mirrored with probability ½. Callers that move landmarks through a mirrored map
-    must also swap left and right landmarks (`landmarks.FLIP_PERMUTATION`).
+    Each crop is `spec.zoom` face sides wide (uniform), turned by up to ±`spec.turn_deg`, moved by up to `spec.shift`
+    of its side in each direction, and mirrored with probability ½ if `spec.flip`. Callers that move landmarks
+    through a mirrored map must also swap left and right landmarks (`landmarks.FLIP_PERMUTATION`).
     """
-    k = _uniform(n, *zoom, gen) * face                               # half-width, normalised units
-    a = torch.deg2rad(_uniform(n, -turn_deg, turn_deg, gen))
-    t = torch.stack([_uniform(n, -1, 1, gen), _uniform(n, -1, 1, gen)], 1) * (shift * 2 * k)[:, None]
-    sx = torch.where(torch.rand(n, generator=gen) < 0.5, -1.0, 1.0) if flip else torch.ones(n)
+    spec = spec or FaceCropSpec()
+    k = _uniform(n, *spec.zoom, gen) * face                          # half-width, normalised units
+    a = torch.deg2rad(_uniform(n, -spec.turn_deg, spec.turn_deg, gen))
+    t = torch.stack([_uniform(n, -1, 1, gen), _uniform(n, -1, 1, gen)], 1) * (spec.shift * 2 * k)[:, None]
+    sx = torch.where(torch.rand(n, generator=gen) < 0.5, -1.0, 1.0) if spec.flip else torch.ones(n)
     theta = torch.zeros(n, 2, 3)
     theta[:, 0, 0], theta[:, 0, 1] = k * a.cos() * sx, -k * a.sin()
     theta[:, 1, 0], theta[:, 1, 1] = k * a.sin() * sx, k * a.cos()

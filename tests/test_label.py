@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from PIL import Image
 
-from catlandmarks.label import run, sheet
+from catlandmarks.label import SheetLayout, run, sheet
 from catlandmarks.pose import LandmarkModel
 from catlandmarks.vit import ViTConfig
 
@@ -23,4 +23,4 @@ def test_labels_every_cat_in_the_source_images_pixels(tmp_path):
     assert info["images"] == 5 and z["points"].shape == (5, 9, 2) and z["confidence"].shape == (5, 9)
     assert z["ids"][0] == "train/cat/0.png"
     assert z["points"].min() >= 0 and z["points"].max() <= 63
-    assert sheet(tmp_path / "labels.npz", tmp_path / "afhq", tmp_path / "sheet.png", n=4, side=32).exists()
+    assert sheet(tmp_path / "labels.npz", tmp_path / "afhq", tmp_path / "sheet.png", SheetLayout(n=4, side=32)).exists()

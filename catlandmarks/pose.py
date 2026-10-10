@@ -58,7 +58,8 @@ def normalised_error(pred: torch.Tensor, true: torch.Tensor) -> torch.Tensor:
     return (pred - true).norm(dim=-1) / eyes
 
 
-def parameter_groups(model: LandmarkModel, lr: float, weight_decay: float, layer_decay: float) -> list[dict]:
+def parameter_groups(model: LandmarkModel, lr: float, weight_decay: float,
+                     layer_decay: float) -> list[dict[str, object]]:
     """AdamW groups with layer-wise learning-rate decay (Clark et al., 2020; used by MAE and ViTPose fine-tuning):
     the decoder gets `lr`, the last encoder block `lr·layer_decay`, each block below another factor, and the patch
     embedding the smallest. Norms and biases are not decayed."""

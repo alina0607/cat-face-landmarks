@@ -40,7 +40,8 @@ def unpatchify(patches: torch.Tensor, patch: int, channels: int = 3) -> torch.Te
     return x.reshape(b, channels, g * patch, g * patch)
 
 
-def random_masking(n: int, tokens: int, ratio: float, device, gen: torch.Generator | None = None):
+def random_masking(n: int, tokens: int, ratio: float, device: torch.device | str,
+                   gen: torch.Generator | None = None) -> tuple[torch.Tensor, torch.Tensor]:
     """Per image, a random subset of tokens to keep: (kept indices (n, keep), mask (n, tokens), 1 = removed)."""
     keep = int(round(tokens * (1 - ratio)))
     noise = torch.rand(n, tokens, generator=gen).to(device)
@@ -67,7 +68,8 @@ class MAE(nn.Module):
             m.apply(init_weights)
         nn.init.normal_(self.mask_token, std=0.02)
 
-    def forward(self, images: torch.Tensor, gen: torch.Generator | None = None):
+    def forward(self, images: torch.Tensor,
+                gen: torch.Generator | None = None) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """(loss, predicted patches (B, tokens, patch²·3), mask (B, tokens))."""
         tokens = self.encoder.embed(images)
         b, n, d = tokens.shape

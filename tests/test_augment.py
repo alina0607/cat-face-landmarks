@@ -1,6 +1,7 @@
 import torch
 
 from catlandmarks.augment import (
+    FaceCropSpec,
     apply,
     centre_crop,
     identity,
@@ -29,7 +30,7 @@ def test_crops_stay_inside_the_image_and_cover_the_requested_area():
 def test_moved_points_follow_the_pixels_they_mark():
     gen = torch.Generator().manual_seed(1)
     images = torch.zeros(8, 1, 64, 64)
-    points = torch.randint(20, 44, (8, 1, 2)).float()
+    points = torch.randint(20, 44, (8, 1, 2), generator=gen).float()
     for i, (x, y) in enumerate(points[:, 0].long()):
         images[i, 0, y - 1:y + 2, x - 1:x + 2] = 1
     theta = random_resized_crop(8, scale=(0.5, 0.9), gen=gen)
@@ -38,14 +39,14 @@ def test_moved_points_follow_the_pixels_they_mark():
     ys, xs = torch.meshgrid(torch.arange(48.0), torch.arange(48.0), indexing="ij")
     for i in range(8):
         m = out[i, 0]
-        if m.sum() < 1:                                             # the dot fell outside this crop
+        if not (3 <= moved[i]).all() or not (moved[i] <= 44).all():  # a dot cut by the crop's edge has a shifted centre
             continue
         found = torch.stack([(xs * m).sum() / m.sum(), (ys * m).sum() / m.sum()])
         torch.testing.assert_close(found, moved[i], atol=0.2, rtol=0)
 
 
 def test_face_crops_have_the_requested_size_and_mirror_half_the_time():
-    theta = random_face_crop(4000, face=0.5, zoom=(1.0, 2.0), gen=torch.Generator().manual_seed(2))
+    theta = random_face_crop(4000, face=0.5, spec=FaceCropSpec(zoom=(1.0, 2.0)), gen=torch.Generator().manual_seed(2))
     half_width = theta[:, :, :2].det().abs().sqrt()
     assert half_width.min() >= 0.5 - 1e-5 and half_width.max() <= 1.0 + 1e-5
     assert 0.45 < is_mirrored(theta).float().mean() < 0.55
@@ -56,7 +57,7 @@ def test_turned_face_crops_move_points_with_the_pixels():
     images = torch.zeros(6, 1, 80, 80)
     points = torch.tensor([[[30.0, 50.0]]]).repeat(6, 1, 1)
     images[:, 0, 49:52, 29:32] = 1
-    theta = random_face_crop(6, face=0.5, zoom=(1.2, 1.6), turn_deg=30, gen=gen)
+    theta = random_face_crop(6, face=0.5, spec=FaceCropSpec(zoom=(1.2, 1.6), turn_deg=30), gen=gen)
     out = apply(images, theta, 64)
     moved = move_points(points, theta, 80, 64)[:, 0]
     ys, xs = torch.meshgrid(torch.arange(64.0), torch.arange(64.0), indexing="ij")

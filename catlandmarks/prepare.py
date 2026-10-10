@@ -33,7 +33,7 @@ SIZE = 320           # crop side; at CONTEXT 2.2 the face spans 145 px, close to
 SPLIT = (0.8, 0.1, 0.1)
 
 
-def split_indices(n: int, seed: int = 0, fractions=SPLIT) -> dict[str, np.ndarray]:
+def split_indices(n: int, seed: int = 0, fractions: tuple[float, float, float] = SPLIT) -> dict[str, np.ndarray]:
     """A seeded random split into train / val / test, each sorted so memory-mapped reads stay sequential."""
     order = np.random.default_rng(seed).permutation(n)
     n_val, n_test = round(n * fractions[1]), round(n * fractions[2])
@@ -41,7 +41,7 @@ def split_indices(n: int, seed: int = 0, fractions=SPLIT) -> dict[str, np.ndarra
     return {k: np.sort(v) for k, v in parts.items()}
 
 
-def prepare_cat(root: Path, out: Path, size: int = SIZE, context: float = CONTEXT, seed: int = 0) -> dict:
+def prepare_cat(root: Path, out: Path, size: int = SIZE, context: float = CONTEXT, seed: int = 0) -> dict[str, object]:
     data = CatDataset(root)
     out.mkdir(parents=True, exist_ok=True)
     images = np.lib.format.open_memmap(out / "images.npy", "w+", np.uint8, (len(data), size, size, 3))
@@ -68,7 +68,7 @@ def prepare_cat(root: Path, out: Path, size: int = SIZE, context: float = CONTEX
     return info
 
 
-def prepare_afhq(root: Path, out: Path, size: int = SIZE) -> dict:
+def prepare_afhq(root: Path, out: Path, size: int = SIZE) -> dict[str, object]:
     """AFHQ's cats, already aligned and framed, only resized (Lanczos) to the CAT crops' size."""
     files = {split: afhq_cats(root, split) for split in AFHQ_SPLITS}
     every = [f for split in AFHQ_SPLITS for f in files[split]]
@@ -90,6 +90,7 @@ def prepare_afhq(root: Path, out: Path, size: int = SIZE) -> dict:
 
 
 def main() -> None:
+    """Command line: build the crop cache of one dataset (see the module docstring)."""
     parser = argparse.ArgumentParser(description="Cut out face crops and store them for training.")
     parser.add_argument("dataset", choices=["cat", "afhq"])
     parser.add_argument("--root", type=Path, required=True)

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -25,8 +26,19 @@ COLOURS = [(230, 40, 40), (250, 200, 0), (40, 200, 60), (40, 120, 255), (0, 210,
            (255, 60, 170), (255, 140, 0), (255, 255, 255)]
 
 
+@dataclass(frozen=True)
+class SheetLayout:
+    """Which labeled cats a contact sheet shows and how big: n random ones (seeded), side pixels each, 8 a row."""
+
+    n: int = 32
+    seed: int = 0
+    side: int = 224
+
+
 @torch.no_grad()
-def run(model_dir: Path, afhq: Path, out: Path, bs: int = 64, dev: torch.device | None = None) -> dict:
+def run(model_dir: Path, afhq: Path, out: Path, bs: int = 64, dev: torch.device | None = None) -> dict[str, object]:
+    """Predict the landmarks of every AFHQ cat with a fine-tuned model; write them (in the images' pixels) and each
+    landmark's confidence to `out`, a summary next to it, and return the summary."""
     dev = dev or device()
     model = load(model_dir, dev)
     size = model.encoder.cfg.image_size
@@ -49,10 +61,12 @@ def run(model_dir: Path, afhq: Path, out: Path, bs: int = 64, dev: torch.device 
     return info
 
 
-def sheet(labels: Path, afhq: Path, out: Path, n: int = 32, seed: int = 0, side: int = 224) -> Path:
+def sheet(labels: Path, afhq: Path, out: Path, layout: SheetLayout | None = None) -> Path:
     """A grid of randomly chosen labeled cats with their landmarks drawn on."""
+    layout = layout or SheetLayout()
+    side = layout.side
     z = np.load(labels)
-    pick = np.random.default_rng(seed).choice(len(z["ids"]), min(n, len(z["ids"])), replace=False)
+    pick = np.random.default_rng(layout.seed).choice(len(z["ids"]), min(layout.n, len(z["ids"])), replace=False)
     cols = 8
     grid = Image.new("RGB", (cols * side, -(-len(pick) // cols) * side), "white")
     for j, i in enumerate(pick):
@@ -69,6 +83,7 @@ def sheet(labels: Path, afhq: Path, out: Path, n: int = 32, seed: int = 0, side:
 
 
 def main() -> None:
+    """Command line: `run` labels every cat, `sheet` draws a sample of the labels."""
     parser = argparse.ArgumentParser(description="Label AFHQ's cats with the nine landmarks.")
     parser.add_argument("stage", choices=["run", "sheet"])
     parser.add_argument("--model", type=Path)
@@ -80,7 +95,7 @@ def main() -> None:
     if args.stage == "run":
         print(json.dumps(run(args.model, args.afhq, args.out)), flush=True)
     else:
-        print(sheet(args.labels, args.afhq, args.out, seed=args.seed), flush=True)
+        print(sheet(args.labels, args.afhq, args.out, SheetLayout(seed=args.seed)), flush=True)
 
 
 if __name__ == "__main__":

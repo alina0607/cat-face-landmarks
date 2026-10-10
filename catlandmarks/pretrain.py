@@ -75,9 +75,19 @@ def to_input(batch: np.ndarray, dev: torch.device) -> torch.Tensor:
     return (x - MEAN.to(dev)) / STD.to(dev)
 
 
-def views(pool: ImagePool, which: np.ndarray, size: int, cfg: TrainConfig, gen, dev) -> torch.Tensor:
+@dataclass(frozen=True)
+class ViewSpec:
+    """The random views MAE trains on: their side in pixels and the share of the image's area they cover."""
+
+    size: int
+    crop_scale: tuple[float, float]
+
+
+def views(pool: ImagePool, which: np.ndarray, spec: ViewSpec, gen: torch.Generator,
+          dev: torch.device | str) -> torch.Tensor:
+    """Random resized crops (mirrored half the time) of the chosen pool images, as normalised model inputs."""
     images = to_input(pool.get(which), dev)
-    return augment.apply(images, augment.random_resized_crop(len(images), cfg.crop_scale, gen=gen), size)
+    return augment.apply(images, augment.random_resized_crop(len(images), spec.crop_scale, gen=gen), spec.size)
 
 
 def lr_at(epoch: float, cfg: TrainConfig) -> float:
@@ -94,7 +104,7 @@ def pools(cfg: TrainConfig) -> tuple[ImagePool, ImagePool]:
 
 
 @torch.no_grad()
-def held_out_loss(model: MAE, pool: ImagePool, cfg: TrainConfig, dev, n: int = 512) -> float:
+def held_out_loss(model: MAE, pool: ImagePool, cfg: TrainConfig, dev: torch.device | str, n: int = 512) -> float:
     """Loss on a fixed set of held-out faces with fixed masks, comparable from epoch to epoch."""
     model.eval()
     gen = torch.Generator().manual_seed(1234)
@@ -132,7 +142,7 @@ def train(cfg: TrainConfig, out: Path, mae_cfg: MAEConfig | None = None, dev: to
         config = {"train": asdict(cfg), "mae": asdict(mae_cfg), "pool": len(train_pool), "held_out": len(val_pool)}
         (out / "config.json").write_text(json.dumps(config, indent=2) + "\n")
     steps = len(train_pool) // cfg.batch
-    size = mae_cfg.encoder.image_size
+    spec = ViewSpec(mae_cfg.encoder.image_size, cfg.crop_scale)
     for epoch in range(start, cfg.epochs):
         rng = np.random.default_rng(cfg.seed * 100_000 + epoch)             # per epoch, so a resume repeats it exactly
         gen = torch.Generator().manual_seed(cfg.seed * 100_000 + epoch)
@@ -141,7 +151,7 @@ def train(cfg: TrainConfig, out: Path, mae_cfg: MAEConfig | None = None, dev: to
         for s in range(steps):
             for g in opt.param_groups:
                 g["lr"] = lr_at(epoch + s / steps, cfg)
-            loss, _, _ = model(views(train_pool, order[s * cfg.batch:(s + 1) * cfg.batch], size, cfg, gen, dev), gen)
+            loss, _, _ = model(views(train_pool, order[s * cfg.batch:(s + 1) * cfg.batch], spec, gen, dev), gen)
             opt.zero_grad(set_to_none=True)
             loss.backward()
             opt.step()
@@ -159,17 +169,18 @@ def train(cfg: TrainConfig, out: Path, mae_cfg: MAEConfig | None = None, dev: to
     torch.save({"encoder": model.encoder.state_dict(), "config": asdict(mae_cfg.encoder)}, out / "encoder.pt")
 
 
-def speed(cfg: TrainConfig, steps: int = 20, mae_cfg: MAEConfig | None = None) -> dict:
+def speed(cfg: TrainConfig, steps: int = 20, mae_cfg: MAEConfig | None = None) -> dict[str, float]:
     mae_cfg = mae_cfg or MAEConfig()
     dev = device()
     train_pool, _ = pools(cfg)
     model = MAE(mae_cfg).to(dev).train()
     opt = torch.optim.AdamW(model.parameters(), lr=1e-4)
     gen, rng, times = torch.Generator().manual_seed(0), np.random.default_rng(0), []
+    spec = ViewSpec(mae_cfg.encoder.image_size, cfg.crop_scale)
     for s in range(steps + 3):
         t0 = time.time()
-        loss, _, _ = model(views(train_pool, rng.choice(len(train_pool), cfg.batch, replace=False),
-                                 mae_cfg.encoder.image_size, cfg, gen, dev), gen)
+        which = rng.choice(len(train_pool), cfg.batch, replace=False)
+        loss, _, _ = model(views(train_pool, which, spec, gen, dev), gen)
         opt.zero_grad(set_to_none=True)
         loss.backward()
         opt.step()
@@ -215,6 +226,7 @@ def show(out: Path, cfg: TrainConfig, n: int = 8, dev: torch.device | None = Non
 
 
 def main() -> None:
+    """Command line: `speed`, `train` or `show` (see the module docstring)."""
     parser = argparse.ArgumentParser(description="Masked-autoencoder pretraining on unlabeled cat faces.")
     parser.add_argument("stage", choices=["speed", "train", "show"])
     parser.add_argument("--out", type=Path, default=Path("runs/mae"))

@@ -26,6 +26,8 @@ from .pose import LandmarkModel, normalised_error, parameter_groups
 from .pretrain import MEAN, STD, device
 from .vit import ViTConfig
 
+EVAL_BATCH = 128
+
 
 @dataclass
 class FinetuneConfig:
@@ -54,7 +56,7 @@ class Faces:
         self.face = 1 / json.loads((cache / "info.json").read_text())["context"]
         self.size = self.images.shape[1]
 
-    def batch(self, which: np.ndarray, dev) -> tuple[torch.Tensor, torch.Tensor]:
+    def batch(self, which: np.ndarray, dev: torch.device | str) -> tuple[torch.Tensor, torch.Tensor]:
         """Images and landmarks of the given faces, in the order asked for (read in index order, which is faster on
         a memory-mapped file, then put back)."""
         order = np.argsort(which)
@@ -64,7 +66,8 @@ class Faces:
         return (x - MEAN.to(dev)) / STD.to(dev), torch.from_numpy(self.points[which]).to(dev)
 
 
-def crops(faces: Faces, which, theta, size: int, dev) -> tuple[torch.Tensor, torch.Tensor]:
+def crops(faces: Faces, which: np.ndarray, theta: torch.Tensor, size: int,
+          dev: torch.device | str) -> tuple[torch.Tensor, torch.Tensor]:
     """Images and landmarks through the maps; mirrored crops get their left and right landmarks swapped."""
     images, points = faces.batch(which, dev)
     out = augment.apply(images, theta, size)
@@ -98,19 +101,20 @@ def build(cfg: FinetuneConfig, init: Path | None) -> LandmarkModel:
 
 
 @torch.no_grad()
-def errors(model: LandmarkModel, faces: Faces, split: str, cfg: FinetuneConfig, dev, bs: int = 128) -> torch.Tensor:
+def errors(model: LandmarkModel, faces: Faces, split: str, cfg: FinetuneConfig,
+           dev: torch.device | str) -> torch.Tensor:
     """Normalised error of every landmark of every face in a split, on the centred crop, (N, 9)."""
     model.eval()
     which, size, out = faces.splits[split], model.encoder.cfg.image_size, []
-    for i in range(0, len(which), bs):
-        chunk = which[i:i + bs]
+    for i in range(0, len(which), EVAL_BATCH):
+        chunk = which[i:i + EVAL_BATCH]
         images, true = crops(faces, chunk, augment.centre_crop(len(chunk), faces.face, cfg.eval_zoom), size, dev)
         out.append(normalised_error(model(images)[0], true).cpu())
     model.train()
     return torch.cat(out)
 
 
-def summary(err: torch.Tensor) -> dict:
+def summary(err: torch.Tensor) -> dict[str, object]:
     per_face = err.mean(1)
     return {"nme": round(per_face.mean().item(), 4),
             "failure_rate_0.1": round((per_face > 0.1).float().mean().item(), 4),
@@ -146,7 +150,8 @@ def train(cfg: FinetuneConfig, out: Path, init: Path | None = None, dev: torch.d
             for g in opt.param_groups:
                 g["lr"] = g["base_lr"] * lr_scale(epoch + s / steps, cfg)
             chunk = order[s * cfg.batch:(s + 1) * cfg.batch]
-            theta = augment.random_face_crop(len(chunk), faces.face, cfg.zoom, cfg.turn_deg, cfg.shift, gen=gen)
+            spec = augment.FaceCropSpec(cfg.zoom, cfg.turn_deg, cfg.shift)
+            theta = augment.random_face_crop(len(chunk), faces.face, spec, gen)
             images, true = crops(faces, chunk, theta, size, dev)
             images = jitter(images, gen)
             loss = landmark_loss(model(images)[0], true, size)
@@ -180,14 +185,16 @@ def jitter(images: torch.Tensor, gen: torch.Generator) -> torch.Tensor:
     return (x - MEAN.to(dev)) / STD.to(dev)
 
 
-def load(out: Path, dev) -> LandmarkModel:
+def load(out: Path, dev: torch.device | str) -> LandmarkModel:
+    """The best checkpoint of a fine-tuning run, ready for inference."""
     state = torch.load(out / "best.pt", map_location="cpu", weights_only=False)
     model = LandmarkModel(ViTConfig(**state["config"]))
     model.load_state_dict(state["model"])
     return model.to(dev).eval()
 
 
-def evaluate(out: Path, split: str, cfg: FinetuneConfig, dev: torch.device | None = None) -> dict:
+def evaluate(out: Path, split: str, cfg: FinetuneConfig, dev: torch.device | None = None) -> dict[str, object]:
+    """Error statistics of a run's best checkpoint on one split, also written to <out>/eval_<split>.json."""
     dev = dev or device()
     faces = Faces(Path(cfg.cache))
     result = {"split": split, "faces": len(faces.splits[split]),
@@ -197,6 +204,7 @@ def evaluate(out: Path, split: str, cfg: FinetuneConfig, dev: torch.device | Non
 
 
 def main() -> None:
+    """Command line: `train` or `evaluate` (see the module docstring)."""
     parser = argparse.ArgumentParser(description="Fine-tune the landmark model on the CAT dataset.")
     parser.add_argument("stage", choices=["train", "evaluate"])
     parser.add_argument("--out", type=Path, required=True)
