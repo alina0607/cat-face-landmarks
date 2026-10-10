@@ -1,4 +1,4 @@
-"""Landmarks from a Vision Transformer: ViTPose's simple decoder and integral regression.
+"""Landmarks from a Vision Transformer: ViTPose's classic decoder and integral regression.
 
 The encoder's patch features (stride 16) are upsampled by two transposed convolutions to stride 4 and turned
 into one heat map per landmark by a 1×1 convolution (Xu et al., 2022, "classic decoder"). Instead of taking each
