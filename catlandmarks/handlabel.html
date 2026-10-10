@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AFHQ hand labels</title>
+<style>
+  :root { --bg: #f4f2ee; --ink: #222; --muted: #6b6760; --panel: #fff; --line: #ddd8cf; --accent: #2f6fde; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1d1c1a; --ink: #eee; --muted: #a39e95; --panel: #282724; --line: #3b3935; --accent: #79a6ff; }
+  }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, sans-serif; }
+  main { display: flex; flex-wrap: wrap; gap: 20px; padding: 16px; justify-content: center; }
+  canvas { background: #7c7468; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); cursor: crosshair;
+           border-radius: 6px; }
+  aside { width: 340px; max-width: calc(100vw - 32px); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  ol { margin: 6px 0 0; padding-left: 22px; }
+  li.done { color: var(--muted); text-decoration: line-through; }
+  li.next { font-weight: 700; color: var(--accent); }
+  button { font: inherit; padding: 6px 12px; margin: 4px 4px 0 0; border-radius: 6px; border: 1px solid var(--line);
+           background: var(--panel); color: var(--ink); cursor: pointer; }
+  .muted { color: var(--muted); font-size: 13px; }
+  img { width: 100%; border-radius: 6px; }
+</style>
+</head>
+<body>
+<main>
+  <canvas id="board" width="768" height="768"></canvas>
+  <aside>
+    <div class="card">
+      <h1 id="title">Loading…</h1>
+      <div class="muted" id="progress"></div>
+      <ol id="steps"></ol>
+      <div>
+        <button id="undo">Undo (Z)</button><button id="clear">Clear</button>
+        <button id="prev">← Previous</button><button id="next">Next →</button>
+      </div>
+      <p class="muted">Click the points in this order. "Left" and "right" are as seen in the picture. If the crop cuts
+        off an ear tip, click where the tip would be, in the grey border. The cat is saved as soon as all nine
+        points are placed.</p>
+    </div>
+    <div class="card"><div class="muted">Example from the CAT dataset, numbered in the same order:</div>
+      <img src="/reference.png" alt="A cat face with its nine landmarks numbered"></div>
+  </aside>
+</main>
+<script>
+const COLOURS = ["rgb(230,40,40)", "rgb(250,200,0)", "rgb(40,200,60)", "rgb(40,120,255)", "rgb(0,210,255)",
+                 "rgb(180,60,255)", "rgb(255,60,170)", "rgb(255,140,0)", "rgb(255,255,255)"];
+const board = document.getElementById("board"), ctx = board.getContext("2d");
+let state, at = 0, points = [], image = new Image();
+
+function firstUnlabeled() {
+  const i = state.cats.findIndex(c => !state.labels[c]);
+  return i < 0 ? 0 : i;
+}
+
+function show(i) {
+  at = (i + state.cats.length) % state.cats.length;
+  points = (state.labels[state.cats[at]] || []).map(p => p.slice());
+  image = new Image();
+  image.onload = draw;
+  image.src = "/image/" + at;
+}
+
+function draw() {
+  const m = state.margin;
+  ctx.fillStyle = "#7c7468";
+  ctx.fillRect(0, 0, board.width, board.height);
+  ctx.drawImage(image, m, m);
+  points.forEach(([x, y], k) => {
+    ctx.beginPath();
+    ctx.arc(x + m, y + m, 7, 0, 2 * Math.PI);
+    ctx.fillStyle = COLOURS[k];
+    ctx.fill();
+    ctx.strokeStyle = "black";
+    ctx.stroke();
+  });
+  const done = Object.keys(state.labels).length;
+  document.getElementById("title").textContent = `Cat ${at + 1} of ${state.cats.length}`;
+  document.getElementById("progress").textContent = `${done} labeled · ${state.cats[at]}`;
+  document.getElementById("steps").innerHTML = state.names.map((n, k) =>
+    `<li class="${k < points.length ? "done" : k === points.length ? "next" : ""}">${n.replaceAll("_", " ")}</li>`).join("");
+}
+
+async function save() {
+  const image = state.cats[at];
+  await fetch("/label", {method: "POST", body: JSON.stringify({image, points})});
+  state.labels[image] = points.map(p => p.slice());
+  const left = state.cats.findIndex(c => !state.labels[c]);
+  show(left < 0 ? at + 1 : left);
+}
+
+board.addEventListener("click", e => {
+  if (points.length >= state.names.length) return;
+  const r = board.getBoundingClientRect(), s = board.width / r.width;
+  points.push([(e.clientX - r.left) * s - state.margin, (e.clientY - r.top) * s - state.margin]);
+  draw();
+  if (points.length === state.names.length) save();
+});
+document.getElementById("undo").onclick = () => { points.pop(); draw(); };
+document.getElementById("clear").onclick = () => { points = []; draw(); };
+document.getElementById("prev").onclick = () => show(at - 1);
+document.getElementById("next").onclick = () => show(at + 1);
+document.addEventListener("keydown", e => { if (e.key === "z" || e.key === "Z") { points.pop(); draw(); } });
+
+fetch("/state").then(r => r.json()).then(s => { state = s; show(firstUnlabeled()); });
+</script>
+</body>
+</html>
