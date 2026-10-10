@@ -1,9 +1,11 @@
 """Put the nine landmarks on every AFHQ cat, and draw a sample of them for inspection.
 
-AFHQ faces fill their 512×512 frame, which falls inside the range of framings the model was trained on (one
-to two face sides), so each image is simply resized to the model's input and the predictions scaled back.
+AFHQ faces fill their 512×512 frame, the tightest framing the model was trained on (one to two face sides). With
+`--pad` the image is shrunk into the middle of a grey frame, so the face covers 1/pad of the input as it did during
+training (1.5 at evaluation); the predictions are mapped back to the image's pixels. The frame also leaves room for
+ear tips that AFHQ's tight crops cut off: they are placed outside the image instead of being pulled into its corners.
 
-    python -m catlandmarks.label run --model runs/pose_mae --afhq data/afhq --out data/labels/afhq_cats.npz
+    python -m catlandmarks.label run --model runs/pose_mae --pad 1.5 --out data/labels/afhq_cats.npz
     python -m catlandmarks.label sheet --labels data/labels/afhq_cats.npz --afhq data/afhq --out runs/afhq_sheet.png
 """
 
@@ -16,12 +18,14 @@ from pathlib import Path
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from PIL import Image, ImageDraw
 
 from .afhq import SPLITS, afhq_cats
 from .finetune import load
 from .pretrain import MEAN, STD, device
 
+BATCH = 64
 COLOURS = [(230, 40, 40), (250, 200, 0), (40, 200, 60), (40, 120, 255), (0, 210, 255), (180, 60, 255),
            (255, 60, 170), (255, 140, 0), (255, 255, 255)]
 
@@ -36,7 +40,7 @@ class SheetLayout:
 
 
 @torch.no_grad()
-def run(model_dir: Path, afhq: Path, out: Path, bs: int = 64, dev: torch.device | None = None) -> dict[str, object]:
+def run(model_dir: Path, afhq: Path, out: Path, pad: float = 1.0, dev: torch.device | None = None) -> dict[str, object]:
     """Predict the landmarks of every AFHQ cat with a fine-tuned model; write them (in the images' pixels) and each
     landmark's confidence to `out`, a summary next to it, and return the summary."""
     dev = dev or device()
@@ -44,19 +48,23 @@ def run(model_dir: Path, afhq: Path, out: Path, bs: int = 64, dev: torch.device 
     size = model.encoder.cfg.image_size
     files = [f for split in SPLITS for f in afhq_cats(afhq, split)]
     points, confidence, source = [], [], None
-    for i in range(0, len(files), bs):
-        images = [Image.open(f).convert("RGB") for f in files[i:i + bs]]
+    for i in range(0, len(files), BATCH):
+        images = [Image.open(f).convert("RGB") for f in files[i:i + BATCH]]
         source = images[0].size[0]
         x = torch.from_numpy(np.stack([np.asarray(im.resize((size, size), Image.LANCZOS)) for im in images]))
         x = (x.to(dev).permute(0, 3, 1, 2).float() / 255 - MEAN.to(dev)) / STD.to(dev)
-        p, c = model(x)
-        points.append(((p + 0.5) * (source / size) - 0.5).cpu().numpy())
+        inner = round(size / pad)
+        framed = torch.zeros_like(x)                     # zero is the mean colour once normalised
+        at = (size - inner) // 2
+        framed[:, :, at:at + inner, at:at + inner] = F.interpolate(x, size=inner, mode="bilinear", antialias=True)
+        p, c = model(framed)
+        points.append(((p + 0.5 - at) * (source / inner) - 0.5).cpu().numpy())
         confidence.append(c.cpu().numpy())
     out.parent.mkdir(parents=True, exist_ok=True)
     ids = np.array([f.relative_to(afhq).as_posix() for f in files])
     np.savez(out, ids=ids, points=np.concatenate(points).astype(np.float32),
              confidence=np.concatenate(confidence).astype(np.float32))
-    info = {"images": len(files), "model": str(model_dir), "image_size": source}
+    info = {"images": len(files), "model": str(model_dir), "image_size": source, "pad": pad}
     out.with_suffix(".json").write_text(json.dumps(info, indent=2) + "\n")
     return info
 
@@ -91,9 +99,10 @@ def main() -> None:
     parser.add_argument("--labels", type=Path, default=Path("data/labels/afhq_cats.npz"))
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--pad", type=float, default=1.0, help="input side over face side (1.5 as in evaluation)")
     args = parser.parse_args()
     if args.stage == "run":
-        print(json.dumps(run(args.model, args.afhq, args.out)), flush=True)
+        print(json.dumps(run(args.model, args.afhq, args.out, args.pad)), flush=True)
     else:
         print(sheet(args.labels, args.afhq, args.out, SheetLayout(seed=args.seed)), flush=True)
 
