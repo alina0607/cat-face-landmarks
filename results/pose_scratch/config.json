@@ -1,0 +1,28 @@
+{
+  "finetune": {
+    "cache": "data/cache/cat",
+    "batch": 64,
+    "epochs": 100,
+    "warmup_epochs": 5,
+    "base_lr": 0.001,
+    "layer_decay": 0.75,
+    "weight_decay": 0.05,
+    "drop_path": 0.1,
+    "zoom": [
+      1.0,
+      2.0
+    ],
+    "eval_zoom": 1.5,
+    "turn_deg": 25.0,
+    "shift": 0.1,
+    "seed": 0
+  },
+  "init": null,
+  "splits": {
+    "val": 1000,
+    "test": 1000,
+    "train": 7996
+  },
+  "hardware": "Kaggle, 1 x NVIDIA Tesla T4, float32",
+  "cache": "data/cache/cat"
+}
