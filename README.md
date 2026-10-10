@@ -10,8 +10,19 @@ This model serves [Sell Anything](https://github.com/alina0607/sell-anything), a
 a generative model. Every training face for that model has to be aligned with the same nine points, and
 the largest clean source of cat faces comes without them.
 
-> 🚧 **Status:** this repository currently holds the description only. The data pipeline, the models,
-> the training code and the evaluation will land here step by step, with results as they are measured.
+## Results
+
+Test split of the CAT dataset (1,000 faces, evaluated once per run). Both runs share every fine-tuning setting
+and were trained for 100 epochs on the same GPU type (a Kaggle T4); only the starting weights differ.
+
+| Encoder initialisation | NME | Failure rate (NME > 0.1) |
+|---|---|---|
+| Random (from scratch) | 0.0780 | 21.4% |
+| MAE pretraining on 13,061 unlabeled cat faces | **0.0670** | **12.2%** |
+
+Pretraining lowers the error on every one of the nine landmarks; the largest gains are on the mouth and the ear
+tips, the smallest on the ear bases, which remain the hardest points. Learning curves, per-landmark errors and the
+worst faces of each run are in [`notebooks/results.ipynb`](notebooks/results.ipynb).
 
 ## The problem: labels in one dataset, quality in another
 
@@ -54,7 +65,8 @@ left and right landmarks swapped) and recolored.
   the distance between the eyes, reported per landmark on a held-out test set that is evaluated once.
 - **Ablation:** the same Vision Transformer trained from scratch, without pretraining, to measure what
   self-supervision contributes.
-- **Transfer to AFHQ:** AFHQ has no landmarks, so a sample is labeled by hand and used only for testing.
+- **Transfer to AFHQ (planned):** AFHQ has no landmarks, so a sample will be labeled by hand and used only for
+  testing.
 
 ## References
 
