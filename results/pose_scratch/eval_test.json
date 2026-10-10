@@ -1,0 +1,17 @@
+{
+  "split": "test",
+  "faces": 1000,
+  "nme": 0.078,
+  "failure_rate_0.1": 0.214,
+  "nme_per_landmark": {
+    "left_eye": 0.046,
+    "right_eye": 0.0459,
+    "mouth": 0.052,
+    "left_ear_outer": 0.1061,
+    "left_ear_tip": 0.0724,
+    "left_ear_inner": 0.095,
+    "right_ear_inner": 0.0951,
+    "right_ear_tip": 0.069,
+    "right_ear_outer": 0.1202
+  }
+}
