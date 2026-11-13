@@ -1,5 +1,7 @@
 # Cat Face Landmarks
 
+[![CI](https://github.com/alina0607/cat-face-landmarks/actions/workflows/ci.yml/badge.svg)](https://github.com/alina0607/cat-face-landmarks/actions/workflows/ci.yml)
+
 > A Vision Transformer that finds nine landmarks on a cat's face (both eyes, the mouth, and three points
 > on each ear), pretrained with self-supervision on unlabeled cat photos and then fine-tuned on a small
 > hand-labeled set. Built from scratch in PyTorch and trained on a single Apple M-series GPU.
@@ -67,6 +69,24 @@ left and right landmarks swapped) and recolored.
   self-supervision contributes.
 - **Transfer to AFHQ (planned):** AFHQ has no landmarks, so a sample will be labeled by hand and used only for
   testing.
+
+## Development
+
+Python 3.10 or newer, managed with [uv](https://docs.astral.sh/uv/). `uv sync` creates the
+environment from `uv.lock`, including the development tools:
+
+```bash
+uv sync
+uv run ruff format --check .            # formatting
+uv run ruff check .                     # lint
+uv run mypy catlandmarks scripts tests  # type check
+uv run pytest                           # tests
+```
+
+`uv run pre-commit install` runs the same checks before every commit (all but the tests).
+GitHub Actions runs the four checks on every push and pull request
+([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). On Linux the CPU build of PyTorch is
+installed, so CI does not download the CUDA libraries.
 
 ## References
 
