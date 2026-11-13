@@ -19,7 +19,7 @@ def test_reads_zipped_and_unpacked_photos_and_skips_unannotated_ones(tmp_path):
     with zipfile.ZipFile(tmp_path / "CAT_DATASET_01.zip", "w") as z:
         z.writestr("CAT_00/00000001_000.jpg", zipped)
         z.writestr("CAT_00/00000001_000.jpg.cat", ANNOTATION)
-        z.writestr("CAT_00/00000002_000.jpg", zipped)              # no annotation
+        z.writestr("CAT_00/00000002_000.jpg", zipped)  # no annotation
     folder = tmp_path / "CAT_05"
     folder.mkdir()
     _jpeg_bytes((0, 0, 200), folder / "00000900_000.jpg")

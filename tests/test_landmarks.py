@@ -30,8 +30,8 @@ def test_flipping_twice_restores_the_points():
 
 def test_flipped_eyes_stay_left_and_right_in_the_image():
     points = np.zeros((NUM_LANDMARKS, 2))
-    points[0] = (100, 50)                                   # left eye
-    points[1] = (200, 50)                                   # right eye
+    points[0] = (100, 50)  # left eye
+    points[1] = (200, 50)  # right eye
     flipped = flip_points(points, 400)
     assert flipped[0, 0] < flipped[1, 0]
-    assert flipped[0].tolist() == [199, 50]                 # the old right eye, mirrored
+    assert flipped[0].tolist() == [199, 50]  # the old right eye, mirrored

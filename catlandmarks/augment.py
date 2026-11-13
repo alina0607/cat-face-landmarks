@@ -19,13 +19,18 @@ def _uniform(n: int, lo: float, hi: float, gen: torch.Generator | None) -> torch
     return lo + (hi - lo) * torch.rand(n, generator=gen)
 
 
-def random_resized_crop(n: int, scale: tuple[float, float] = (0.25, 1.0), ratio: tuple[float, float] = (3 / 4, 4 / 3),
-                        flip: bool = True, gen: torch.Generator | None = None) -> torch.Tensor:
+def random_resized_crop(
+    n: int,
+    scale: tuple[float, float] = (0.25, 1.0),
+    ratio: tuple[float, float] = (3 / 4, 4 / 3),
+    flip: bool = True,
+    gen: torch.Generator | None = None,
+) -> torch.Tensor:
     """(n, 2, 3) maps for crops covering `scale` of the image's area with aspect ratio in `ratio` (log-uniform),
     placed uniformly inside the image, mirrored with probability ½ (Szegedy et al., 2015; as in MAE)."""
     area = _uniform(n, *scale, gen)
     log_ratio = _uniform(n, math.log(ratio[0]), math.log(ratio[1]), gen)
-    w = (area * log_ratio.exp()).sqrt().clamp(max=1)            # half-widths in normalised units are w, h
+    w = (area * log_ratio.exp()).sqrt().clamp(max=1)  # half-widths in normalised units are w, h
     h = (area / log_ratio.exp()).sqrt().clamp(max=1)
     cx = _uniform(n, -1, 1, gen) * (1 - w)
     cy = _uniform(n, -1, 1, gen) * (1 - h)
@@ -46,8 +51,9 @@ class FaceCropSpec:
     flip: bool = True
 
 
-def random_face_crop(n: int, face: float, spec: FaceCropSpec | None = None,
-                     gen: torch.Generator | None = None) -> torch.Tensor:
+def random_face_crop(
+    n: int, face: float, spec: FaceCropSpec | None = None, gen: torch.Generator | None = None
+) -> torch.Tensor:
     """(n, 2, 3) maps for square crops around a face centred in the image, whose side is `face` of the image's.
 
     Each crop is `spec.zoom` face sides wide (uniform), turned by up to ±`spec.turn_deg`, moved by up to `spec.shift`
@@ -55,7 +61,7 @@ def random_face_crop(n: int, face: float, spec: FaceCropSpec | None = None,
     through a mirrored map must also swap left and right landmarks (`landmarks.FLIP_PERMUTATION`).
     """
     spec = spec or FaceCropSpec()
-    k = _uniform(n, *spec.zoom, gen) * face                          # half-width, normalised units
+    k = _uniform(n, *spec.zoom, gen) * face  # half-width, normalised units
     a = torch.deg2rad(_uniform(n, -spec.turn_deg, spec.turn_deg, gen))
     t = torch.stack([_uniform(n, -1, 1, gen), _uniform(n, -1, 1, gen)], 1) * (spec.shift * 2 * k)[:, None]
     sx = torch.where(torch.rand(n, generator=gen) < 0.5, -1.0, 1.0) if spec.flip else torch.ones(n)
@@ -84,8 +90,9 @@ def identity(n: int) -> torch.Tensor:
 
 def apply(images: torch.Tensor, theta: torch.Tensor, size: int) -> torch.Tensor:
     """Resample (B, C, H, W) images through the maps into (B, C, size, size), bilinear, edges repeated."""
-    grid = F.affine_grid(theta.to(images.device, images.dtype), (images.shape[0], images.shape[1], size, size),
-                         align_corners=False)
+    grid = F.affine_grid(
+        theta.to(images.device, images.dtype), (images.shape[0], images.shape[1], size, size), align_corners=False
+    )
     return F.grid_sample(images, grid, mode="bilinear", padding_mode="border", align_corners=False)
 
 

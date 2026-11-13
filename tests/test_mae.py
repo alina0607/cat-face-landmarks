@@ -3,8 +3,12 @@ import torch
 from catlandmarks.mae import MAE, MAEConfig, patchify, random_masking, unpatchify
 from catlandmarks.vit import ViTConfig
 
-TINY = MAEConfig(encoder=ViTConfig(image_size=32, patch_size=8, dim=32, depth=2, heads=4),
-                 decoder_dim=32, decoder_depth=1, decoder_heads=4)
+TINY = MAEConfig(
+    encoder=ViTConfig(image_size=32, patch_size=8, dim=32, depth=2, heads=4),
+    decoder_dim=32,
+    decoder_depth=1,
+    decoder_heads=4,
+)
 
 
 def test_patchify_round_trips_and_orders_patches_row_by_row():

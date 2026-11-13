@@ -25,7 +25,7 @@ from . import augment
 from .mae import MAE, MAEConfig
 from .vit import ViTConfig
 
-MEAN = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)      # ImageNet statistics, as in MAE
+MEAN = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)  # ImageNet statistics, as in MAE
 STD = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
 
 
@@ -35,7 +35,7 @@ class TrainConfig:
     batch: int = 128
     epochs: int = 400
     warmup_epochs: int = 20
-    base_lr: float = 1.5e-4                  # scaled by batch / 256, as in MAE
+    base_lr: float = 1.5e-4  # scaled by batch / 256, as in MAE
     weight_decay: float = 0.05
     crop_scale: tuple = (0.25, 1.0)
     seed: int = 0
@@ -83,8 +83,9 @@ class ViewSpec:
     crop_scale: tuple[float, float]
 
 
-def views(pool: ImagePool, which: np.ndarray, spec: ViewSpec, gen: torch.Generator,
-          dev: torch.device | str) -> torch.Tensor:
+def views(
+    pool: ImagePool, which: np.ndarray, spec: ViewSpec, gen: torch.Generator, dev: torch.device | str
+) -> torch.Tensor:
     """Random resized crops (mirrored half the time) of the chosen pool images, as normalised model inputs."""
     images = to_input(pool.get(which), dev)
     return augment.apply(images, augment.random_resized_crop(len(images), spec.crop_scale, gen=gen), spec.size)
@@ -99,8 +100,7 @@ def lr_at(epoch: float, cfg: TrainConfig) -> float:
 
 def pools(cfg: TrainConfig) -> tuple[ImagePool, ImagePool]:
     cache = Path(cfg.cache)
-    return (ImagePool(cache, {"cat": "train", "afhq": "train"}),
-            ImagePool(cache, {"cat": "val", "afhq": "test"}))
+    return (ImagePool(cache, {"cat": "train", "afhq": "train"}), ImagePool(cache, {"cat": "val", "afhq": "test"}))
 
 
 @torch.no_grad()
@@ -112,7 +112,7 @@ def held_out_loss(model: MAE, pool: ImagePool, cfg: TrainConfig, dev: torch.devi
     size = model.cfg.encoder.image_size
     total = 0.0
     for i in range(0, len(which), cfg.batch):
-        chunk = which[i:i + cfg.batch]
+        chunk = which[i : i + cfg.batch]
         images = augment.apply(to_input(pool.get(chunk), dev), augment.identity(len(chunk)), size)
         loss, _, _ = model(images, gen)
         total += loss.item() * len(images)
@@ -144,26 +144,35 @@ def train(cfg: TrainConfig, out: Path, mae_cfg: MAEConfig | None = None, dev: to
     steps = len(train_pool) // cfg.batch
     spec = ViewSpec(mae_cfg.encoder.image_size, cfg.crop_scale)
     for epoch in range(start, cfg.epochs):
-        rng = np.random.default_rng(cfg.seed * 100_000 + epoch)             # per epoch, so a resume repeats it exactly
+        rng = np.random.default_rng(cfg.seed * 100_000 + epoch)  # per epoch, so a resume repeats it exactly
         gen = torch.Generator().manual_seed(cfg.seed * 100_000 + epoch)
         order, t0, running = rng.permutation(len(train_pool)), time.time(), 0.0
         model.train()
         for s in range(steps):
             for g in opt.param_groups:
                 g["lr"] = lr_at(epoch + s / steps, cfg)
-            loss, _, _ = model(views(train_pool, order[s * cfg.batch:(s + 1) * cfg.batch], spec, gen, dev), gen)
+            loss, _, _ = model(views(train_pool, order[s * cfg.batch : (s + 1) * cfg.batch], spec, gen, dev), gen)
             opt.zero_grad(set_to_none=True)
             loss.backward()
             opt.step()
             running += loss.item()
-        record = {"epoch": epoch + 1, "loss": round(running / steps, 4),
-                  "held_out": round(held_out_loss(model, val_pool, cfg, dev), 4),
-                  "lr": round(lr_at(epoch + 1, cfg), 7), "seconds": round(time.time() - t0)}
+        record = {
+            "epoch": epoch + 1,
+            "loss": round(running / steps, 4),
+            "held_out": round(held_out_loss(model, val_pool, cfg, dev), 4),
+            "lr": round(lr_at(epoch + 1, cfg), 7),
+            "seconds": round(time.time() - t0),
+        }
         with open(out / "metrics.jsonl", "a") as f:
             f.write(json.dumps(record) + "\n")
         print(json.dumps(record), flush=True)
-        state = {"model": model.state_dict(), "optimizer": opt.state_dict(), "epoch": epoch + 1,
-                 "train": asdict(cfg), "mae": asdict(mae_cfg)}
+        state = {
+            "model": model.state_dict(),
+            "optimizer": opt.state_dict(),
+            "epoch": epoch + 1,
+            "train": asdict(cfg),
+            "mae": asdict(mae_cfg),
+        }
         torch.save(state, out / "last.tmp")
         (out / "last.tmp").replace(out / "last.pt")
     torch.save({"encoder": model.encoder.state_dict(), "config": asdict(mae_cfg.encoder)}, out / "encoder.pt")
@@ -188,11 +197,15 @@ def speed(cfg: TrainConfig, steps: int = 20, mae_cfg: MAEConfig | None = None) -
         if s >= 3:
             times.append(time.time() - t0)
     per = float(np.mean(times))
-    record = {"parameters": sum(p.numel() for p in model.parameters()), "pool": len(train_pool), "batch": cfg.batch,
-              "seconds_per_step": round(per, 3),
-              "minutes_per_epoch": round(per * (len(train_pool) // cfg.batch) / 60, 2)}
+    record = {
+        "parameters": sum(p.numel() for p in model.parameters()),
+        "pool": len(train_pool),
+        "batch": cfg.batch,
+        "seconds_per_step": round(per, 3),
+        "minutes_per_epoch": round(per * (len(train_pool) // cfg.batch) / 60, 2),
+    }
     if dev.type == "mps":
-        record["peak_gpu_gb"] = round(torch.mps.driver_allocated_memory() / 2 ** 30, 1)
+        record["peak_gpu_gb"] = round(torch.mps.driver_allocated_memory() / 2**30, 1)
     print(json.dumps(record), flush=True)
     return record
 
@@ -202,10 +215,12 @@ def show(out: Path, cfg: TrainConfig, n: int = 8, dev: torch.device | None = Non
     """Held-out faces, left to right: the input, what the encoder sees, the reconstruction, and the reconstruction
     with the visible patches put back."""
     from PIL import Image
+
     dev = dev or device()
     state = torch.load(out / "last.pt", map_location="cpu", weights_only=False)
-    mae_cfg = MAEConfig(encoder=ViTConfig(**state["mae"]["encoder"]),
-                        **{k: v for k, v in state["mae"].items() if k != "encoder"})
+    mae_cfg = MAEConfig(
+        encoder=ViTConfig(**state["mae"]["encoder"]), **{k: v for k, v in state["mae"].items() if k != "encoder"}
+    )
     model = MAE(mae_cfg).to(dev).eval()
     model.load_state_dict(state["model"])
     _, val_pool = pools(cfg)

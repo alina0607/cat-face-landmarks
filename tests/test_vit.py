@@ -22,7 +22,7 @@ def test_patch_tokens_only_see_their_own_patch_before_attention():
     model = ViT(TINY)
     a = torch.zeros(1, 3, 32, 32)
     b = a.clone()
-    b[..., :8, :8] = 1                                       # change the first patch only
+    b[..., :8, :8] = 1  # change the first patch only
     diff = (model.embed(a) - model.embed(b)).abs().sum(-1)[0]
     assert diff[0] > 0 and torch.all(diff[1:] == 0)
 

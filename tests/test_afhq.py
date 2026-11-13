@@ -5,8 +5,12 @@ from catlandmarks.afhq import afhq_cats
 
 
 def test_lists_only_the_cats_of_the_split(tmp_path):
-    for split, animal, name in [("train", "cat", "b.png"), ("train", "cat", "a.png"), ("train", "dog", "c.png"),
-                                ("test", "cat", "d.png")]:
+    for split, animal, name in [
+        ("train", "cat", "b.png"),
+        ("train", "cat", "a.png"),
+        ("train", "dog", "c.png"),
+        ("test", "cat", "d.png"),
+    ]:
         (tmp_path / split / animal).mkdir(parents=True, exist_ok=True)
         Image.new("RGB", (8, 8)).save(tmp_path / split / animal / name)
     assert [p.name for p in afhq_cats(tmp_path, "train")] == ["a.png", "b.png"]

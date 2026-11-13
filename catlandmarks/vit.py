@@ -19,7 +19,7 @@ import torch.nn.functional as F
 class ViTConfig:
     image_size: int = 224
     patch_size: int = 16
-    dim: int = 384               # ViT-Small
+    dim: int = 384  # ViT-Small
     depth: int = 12
     heads: int = 6
     mlp_ratio: float = 4.0
@@ -86,7 +86,7 @@ class ViT(nn.Module):
         self.cfg = cfg
         self.patch_embed = nn.Conv2d(3, cfg.dim, cfg.patch_size, cfg.patch_size)
         self.register_buffer("pos", sincos_position_codes(cfg.dim, cfg.grid)[None], persistent=False)
-        rates = np.linspace(0, cfg.drop_path, cfg.depth)          # deeper blocks are dropped more often
+        rates = np.linspace(0, cfg.drop_path, cfg.depth)  # deeper blocks are dropped more often
         self.blocks = nn.ModuleList([Block(cfg.dim, cfg.heads, cfg.mlp_ratio, float(r)) for r in rates])
         self.norm = nn.LayerNorm(cfg.dim)
         self.apply(init_weights)

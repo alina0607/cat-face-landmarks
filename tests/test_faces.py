@@ -17,7 +17,7 @@ def test_a_marked_pixel_lands_where_to_crop_puts_it(box, size, offset):
     mark = np.array([[round(box.cx + offset[0] * box.side), round(box.cy + offset[1] * box.side)]])
     image = np.zeros((90, 120, 3), np.uint8)
     x, y = mark[0]
-    image[y - 1:y + 2, x - 1:x + 2] = 255                   # a 3×3 dot, centred on the marked pixel
+    image[y - 1 : y + 2, x - 1 : x + 2] = 255  # a 3×3 dot, centred on the marked pixel
     out, _ = crop(Image.fromarray(image), box, size)
     grey = out.mean(-1).clip(0)
     ys, xs = np.mgrid[:size, :size]

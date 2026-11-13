@@ -7,8 +7,12 @@ from catlandmarks.mae import MAEConfig
 from catlandmarks.pretrain import ImagePool, TrainConfig, show, train
 from catlandmarks.vit import ViTConfig
 
-TINY = MAEConfig(encoder=ViTConfig(image_size=32, patch_size=8, dim=32, depth=1, heads=4),
-                 decoder_dim=32, decoder_depth=1, decoder_heads=4)
+TINY = MAEConfig(
+    encoder=ViTConfig(image_size=32, patch_size=8, dim=32, depth=1, heads=4),
+    decoder_dim=32,
+    decoder_depth=1,
+    decoder_heads=4,
+)
 
 
 def _cache(root, name, n, splits):
@@ -37,7 +41,7 @@ def test_train_writes_metrics_resumes_and_shows(tmp_path):
     out = tmp_path / "run"
     train(cfg, out, TINY, torch.device("cpu"))
     cfg.epochs = 3
-    train(cfg, out, TINY, torch.device("cpu"))                    # picks up after epoch 2
+    train(cfg, out, TINY, torch.device("cpu"))  # picks up after epoch 2
     epochs = [json.loads(line)["epoch"] for line in (out / "metrics.jsonl").read_text().splitlines()]
     assert epochs == [1, 2, 3]
     assert (out / "encoder.pt").exists()

@@ -25,9 +25,9 @@ from .label import COLOURS
 from .landmarks import NAMES
 
 PAGE = Path(__file__).with_name("handlabel.html")
-MARGIN = 128                          # grey border around each 512-pixel image, in image pixels
+MARGIN = 128  # grey border around each 512-pixel image, in image pixels
 SAMPLE = 50
-DOT = 6                               # radius of a drawn landmark, in guide pixels
+DOT = 6  # radius of a drawn landmark, in guide pixels
 
 
 def sample(afhq: Path, n: int = SAMPLE, seed: int = 0) -> list[str]:
@@ -115,9 +115,13 @@ def score(hand: Path, labels: Path) -> dict[str, object]:
     eyes = np.linalg.norm(true[:, 0] - true[:, 1], axis=1, keepdims=True)
     err = np.linalg.norm(pred - true, axis=-1) / eyes
     per_face = err.mean(1)
-    return {"cats": len(ids), "labels": str(labels), "nme": round(float(per_face.mean()), 4),
-            "failure_rate_0.1": round(float((per_face > 0.1).mean()), 4),
-            "nme_per_landmark": {n: round(float(v), 4) for n, v in zip(NAMES, err.mean(0), strict=True)}}
+    return {
+        "cats": len(ids),
+        "labels": str(labels),
+        "nme": round(float(per_face.mean()), 4),
+        "failure_rate_0.1": round(float((per_face > 0.1).mean()), 4),
+        "nme_per_landmark": {n: round(float(v), 4) for n, v in zip(NAMES, err.mean(0), strict=True)},
+    }
 
 
 def main() -> None:

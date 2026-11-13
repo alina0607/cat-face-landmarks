@@ -26,7 +26,7 @@ def test_mirrored_crops_keep_the_left_eye_on_the_left(tmp_path):
     _cache(tmp_path / "cat")
     faces = Faces(tmp_path / "cat")
     theta = augment.centre_crop(2, faces.face, 1.5)
-    theta[1, 0, 0] *= -1                                             # mirror the second crop
+    theta[1, 0, 0] *= -1  # mirror the second crop
     _, points = crops(faces, np.array([0, 0]), theta, 32, "cpu")
     assert points[0, 0, 0] < points[0, 1, 0] and points[1, 0, 0] < points[1, 1, 0]
     torch.testing.assert_close(points[1, :, 0], 31 - points[0, list(FLIP_PERMUTATION), 0])

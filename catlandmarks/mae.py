@@ -35,13 +35,14 @@ def patchify(images: torch.Tensor, patch: int) -> torch.Tensor:
 
 def unpatchify(patches: torch.Tensor, patch: int, channels: int = 3) -> torch.Tensor:
     b, n, _ = patches.shape
-    g = int(n ** 0.5)
+    g = int(n**0.5)
     x = patches.reshape(b, g, g, patch, patch, channels).permute(0, 5, 1, 3, 2, 4)
     return x.reshape(b, channels, g * patch, g * patch)
 
 
-def random_masking(n: int, tokens: int, ratio: float, device: torch.device | str,
-                   gen: torch.Generator | None = None) -> tuple[torch.Tensor, torch.Tensor]:
+def random_masking(
+    n: int, tokens: int, ratio: float, device: torch.device | str, gen: torch.Generator | None = None
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Per image, a random subset of tokens to keep: (kept indices (n, keep), mask (n, tokens), 1 = removed)."""
     keep = int(round(tokens * (1 - ratio)))
     noise = torch.rand(n, tokens, generator=gen).to(device)
@@ -60,16 +61,16 @@ class MAE(nn.Module):
         self.decoder_embed = nn.Linear(enc.dim, cfg.decoder_dim)
         self.mask_token = nn.Parameter(torch.zeros(1, 1, cfg.decoder_dim))
         self.register_buffer("decoder_pos", sincos_position_codes(cfg.decoder_dim, enc.grid)[None], persistent=False)
-        self.decoder = nn.ModuleList([Block(cfg.decoder_dim, cfg.decoder_heads, 4.0)
-                                      for _ in range(cfg.decoder_depth)])
+        self.decoder = nn.ModuleList([Block(cfg.decoder_dim, cfg.decoder_heads, 4.0) for _ in range(cfg.decoder_depth)])
         self.decoder_norm = nn.LayerNorm(cfg.decoder_dim)
-        self.predict = nn.Linear(cfg.decoder_dim, enc.patch_size ** 2 * 3)
+        self.predict = nn.Linear(cfg.decoder_dim, enc.patch_size**2 * 3)
         for m in (self.decoder_embed, self.decoder, self.decoder_norm, self.predict):
             m.apply(init_weights)
         nn.init.normal_(self.mask_token, std=0.02)
 
-    def forward(self, images: torch.Tensor,
-                gen: torch.Generator | None = None) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def forward(
+        self, images: torch.Tensor, gen: torch.Generator | None = None
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """(loss, predicted patches (B, tokens, patch²·3), mask (B, tokens))."""
         tokens = self.encoder.embed(images)
         b, n, d = tokens.shape

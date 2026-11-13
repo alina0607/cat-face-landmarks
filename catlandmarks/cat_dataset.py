@@ -25,9 +25,9 @@ class CatPhoto:
     """One annotated photo. `id` is its path inside the dataset without the extension, e.g. CAT_00/00000001_000."""
 
     id: str
-    points: np.ndarray        # (9, 2) pixel positions (x, y) in the photo
-    source: Path              # the zip archive that holds it, or the photo file itself
-    member: str | None        # its name inside the archive; None for an unpacked photo
+    points: np.ndarray  # (9, 2) pixel positions (x, y) in the photo
+    source: Path  # the zip archive that holds it, or the photo file itself
+    member: str | None  # its name inside the archive; None for an unpacked photo
 
 
 class CatDataset:

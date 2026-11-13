@@ -34,8 +34,8 @@ def parse_annotation(text: str) -> np.ndarray:
         raise ValueError("empty annotation")
     count = int(values[0])
     if count != NUM_LANDMARKS or len(values) < 1 + 2 * count:
-        raise ValueError(f"expected {NUM_LANDMARKS} points, got {values[:1 + 2 * NUM_LANDMARKS]}")
-    return np.array(values[1:1 + 2 * count], dtype=np.float64).reshape(count, 2)
+        raise ValueError(f"expected {NUM_LANDMARKS} points, got {values[: 1 + 2 * NUM_LANDMARKS]}")
+    return np.array(values[1 : 1 + 2 * count], dtype=np.float64).reshape(count, 2)
 
 
 def flip_points(points: np.ndarray, width: float) -> np.ndarray:

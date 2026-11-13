@@ -24,7 +24,7 @@ def test_crops_stay_inside_the_image_and_cover_the_requested_area():
     assert torch.all(cx.abs() + w <= 1 + 1e-6) and torch.all(cy.abs() + h <= 1 + 1e-6)
     area = w * h
     assert area.min() >= 0.3 - 1e-6 and area.max() <= 0.6 + 1e-6
-    assert 0.4 < (theta[:, 0, 0] < 0).float().mean() < 0.6          # about half are mirrored
+    assert 0.4 < (theta[:, 0, 0] < 0).float().mean() < 0.6  # about half are mirrored
 
 
 def test_moved_points_follow_the_pixels_they_mark():
@@ -32,7 +32,7 @@ def test_moved_points_follow_the_pixels_they_mark():
     images = torch.zeros(8, 1, 64, 64)
     points = torch.randint(20, 44, (8, 1, 2), generator=gen).float()
     for i, (x, y) in enumerate(points[:, 0].long()):
-        images[i, 0, y - 1:y + 2, x - 1:x + 2] = 1
+        images[i, 0, y - 1 : y + 2, x - 1 : x + 2] = 1
     theta = random_resized_crop(8, scale=(0.5, 0.9), gen=gen)
     out = apply(images, theta, 48)
     moved = move_points(points, theta, 64, 48)[:, 0]

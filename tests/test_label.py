@@ -26,18 +26,18 @@ def test_labels_every_cat_in_the_source_images_pixels(tmp_path):
     assert sheet(tmp_path / "labels.npz", tmp_path / "afhq", tmp_path / "sheet.png", SheetLayout(n=4, side=32)).exists()
 
 
-
 def test_a_padded_frame_maps_points_back_to_image_pixels_even_outside_it(tmp_path, monkeypatch):
     (tmp_path / "afhq" / "train" / "cat").mkdir(parents=True)
     (tmp_path / "afhq" / "test" / "cat").mkdir(parents=True)
     Image.new("RGB", (64, 64), (200, 90, 30)).save(tmp_path / "afhq" / "train" / "cat" / "0.png")
 
-    class Corners(torch.nn.Module):            # puts every landmark on the input's first and last pixel
+    class Corners(torch.nn.Module):  # puts every landmark on the input's first and last pixel
         encoder = LandmarkModel(TINY).encoder
 
         def forward(self, x):
             p = torch.tensor([[0.0, 0.0]] * 4 + [[31.0, 31.0]] * 5).expand(len(x), 9, 2)
             return p, torch.ones(len(x), 9)
+
     monkeypatch.setattr("catlandmarks.label.load", lambda *_: Corners())
 
     run(tmp_path / "model", tmp_path / "afhq", tmp_path / "labels.npz", pad=2.0, dev=torch.device("cpu"))

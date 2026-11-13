@@ -26,8 +26,17 @@ from .finetune import load
 from .pretrain import MEAN, STD, device
 
 BATCH = 64
-COLOURS = [(230, 40, 40), (250, 200, 0), (40, 200, 60), (40, 120, 255), (0, 210, 255), (180, 60, 255),
-           (255, 60, 170), (255, 140, 0), (255, 255, 255)]
+COLOURS = [
+    (230, 40, 40),
+    (250, 200, 0),
+    (40, 200, 60),
+    (40, 120, 255),
+    (0, 210, 255),
+    (180, 60, 255),
+    (255, 60, 170),
+    (255, 140, 0),
+    (255, 255, 255),
+]
 
 
 @dataclass(frozen=True)
@@ -49,21 +58,25 @@ def run(model_dir: Path, afhq: Path, out: Path, pad: float = 1.0, dev: torch.dev
     files = [f for split in SPLITS for f in afhq_cats(afhq, split)]
     points, confidence, source = [], [], None
     for i in range(0, len(files), BATCH):
-        images = [Image.open(f).convert("RGB") for f in files[i:i + BATCH]]
+        images = [Image.open(f).convert("RGB") for f in files[i : i + BATCH]]
         source = images[0].size[0]
         x = torch.from_numpy(np.stack([np.asarray(im.resize((size, size), Image.LANCZOS)) for im in images]))
         x = (x.to(dev).permute(0, 3, 1, 2).float() / 255 - MEAN.to(dev)) / STD.to(dev)
         inner = round(size / pad)
-        framed = torch.zeros_like(x)                     # zero is the mean colour once normalised
+        framed = torch.zeros_like(x)  # zero is the mean colour once normalised
         at = (size - inner) // 2
-        framed[:, :, at:at + inner, at:at + inner] = F.interpolate(x, size=inner, mode="bilinear", antialias=True)
+        framed[:, :, at : at + inner, at : at + inner] = F.interpolate(x, size=inner, mode="bilinear", antialias=True)
         p, c = model(framed)
         points.append(((p + 0.5 - at) * (source / inner) - 0.5).cpu().numpy())
         confidence.append(c.cpu().numpy())
     out.parent.mkdir(parents=True, exist_ok=True)
     ids = np.array([f.relative_to(afhq).as_posix() for f in files])
-    np.savez(out, ids=ids, points=np.concatenate(points).astype(np.float32),
-             confidence=np.concatenate(confidence).astype(np.float32))
+    np.savez(
+        out,
+        ids=ids,
+        points=np.concatenate(points).astype(np.float32),
+        confidence=np.concatenate(confidence).astype(np.float32),
+    )
     info = {"images": len(files), "model": str(model_dir), "image_size": source, "pad": pad}
     out.with_suffix(".json").write_text(json.dumps(info, indent=2) + "\n")
     return info

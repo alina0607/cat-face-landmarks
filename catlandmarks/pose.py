@@ -46,7 +46,7 @@ def soft_argmax(maps: torch.Tensor, stride: int) -> tuple[torch.Tensor, torch.Te
     probability, which is high when the model is sure of one place and low when it hesitates."""
     b, k, h, w = maps.shape
     p = maps.flatten(2).softmax(-1).view(b, k, h, w)
-    xs = (torch.arange(w, device=maps.device, dtype=p.dtype) + 0.5) * stride - 0.5   # cell centres, input pixels
+    xs = (torch.arange(w, device=maps.device, dtype=p.dtype) + 0.5) * stride - 0.5  # cell centres, input pixels
     ys = (torch.arange(h, device=maps.device, dtype=p.dtype) + 0.5) * stride - 0.5
     points = torch.stack([(p.sum(2) * xs).sum(-1), (p.sum(3) * ys).sum(-1)], -1)
     return points, p.flatten(2).amax(-1)
@@ -58,8 +58,9 @@ def normalised_error(pred: torch.Tensor, true: torch.Tensor) -> torch.Tensor:
     return (pred - true).norm(dim=-1) / eyes
 
 
-def parameter_groups(model: LandmarkModel, lr: float, weight_decay: float,
-                     layer_decay: float) -> list[dict[str, object]]:
+def parameter_groups(
+    model: LandmarkModel, lr: float, weight_decay: float, layer_decay: float
+) -> list[dict[str, object]]:
     """AdamW groups with layer-wise learning-rate decay (Clark et al., 2020; used by MAE and ViTPose fine-tuning):
     the decoder gets `lr`, the last encoder block `lr·layer_decay`, each block below another factor, and the patch
     embedding the smallest. Norms and biases are not decayed."""
@@ -70,7 +71,7 @@ def parameter_groups(model: LandmarkModel, lr: float, weight_decay: float,
             return 0
         if name.startswith("encoder.blocks."):
             return int(name.split(".")[2]) + 1
-        return depth + 1                                              # final norm and decoder
+        return depth + 1  # final norm and decoder
 
     groups: dict[tuple, dict] = {}
     for name, p in model.named_parameters():
@@ -80,8 +81,11 @@ def parameter_groups(model: LandmarkModel, lr: float, weight_decay: float,
         decay = p.ndim >= 2
         key = (i, decay)
         if key not in groups:
-            groups[key] = {"params": [], "lr": lr * layer_decay ** (depth + 1 - i),
-                           "weight_decay": weight_decay if decay else 0.0}
+            groups[key] = {
+                "params": [],
+                "lr": lr * layer_decay ** (depth + 1 - i),
+                "weight_decay": weight_decay if decay else 0.0,
+            }
         groups[key]["params"].append(p)
     for g in groups.values():
         g["base_lr"] = g["lr"]
