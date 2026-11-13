@@ -60,7 +60,8 @@ def prepare_cat(root: Path, out: Path, size: int = SIZE, context: float = CONTEX
     np.save(out / "inside.npy", inside)
     (out / "ids.txt").write_text("\n".join(p.id for p in data.photos) + "\n")
     splits = split_indices(len(data), seed)
-    np.savez(out / "splits.npz", **splits)
+    # mypy: a ** dict could hold savez's `allow_pickle` keyword; these keys are only split names.
+    np.savez(out / "splits.npz", **splits)  # type: ignore[arg-type]
     info = {
         "source": "CAT dataset",
         "faces": len(data),
@@ -83,13 +84,15 @@ def prepare_afhq(root: Path, out: Path, size: int = SIZE) -> dict[str, object]:
     images = np.lib.format.open_memmap(out / "images.npy", "w+", np.uint8, (len(every), size, size, 3))
     start = time.time()
     for i, path in enumerate(every):
-        images[i] = np.asarray(Image.open(path).convert("RGB").resize((size, size), Image.LANCZOS))
+        images[i] = np.asarray(Image.open(path).convert("RGB").resize((size, size), Image.Resampling.LANCZOS))
         if (i + 1) % 1000 == 0:
             print(f"  {i + 1}/{len(every)} faces, {time.time() - start:.0f} s", flush=True)
     images.flush()
     (out / "ids.txt").write_text("\n".join(p.relative_to(root).as_posix() for p in every) + "\n")
     bounds = np.cumsum([0] + [len(files[s]) for s in AFHQ_SPLITS])
-    np.savez(out / "splits.npz", **{s: np.arange(bounds[k], bounds[k + 1]) for k, s in enumerate(AFHQ_SPLITS)})
+    splits = {s: np.arange(bounds[k], bounds[k + 1]) for k, s in enumerate(AFHQ_SPLITS)}
+    # mypy: a ** dict could hold savez's `allow_pickle` keyword; these keys are only split names.
+    np.savez(out / "splits.npz", **splits)  # type: ignore[arg-type]
     info = {
         "source": "AFHQ v2 cats",
         "faces": len(every),

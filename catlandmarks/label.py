@@ -60,7 +60,7 @@ def run(model_dir: Path, afhq: Path, out: Path, pad: float = 1.0, dev: torch.dev
     for i in range(0, len(files), BATCH):
         images = [Image.open(f).convert("RGB") for f in files[i : i + BATCH]]
         source = images[0].size[0]
-        x = torch.from_numpy(np.stack([np.asarray(im.resize((size, size), Image.LANCZOS)) for im in images]))
+        x = torch.from_numpy(np.stack([np.asarray(im.resize((size, size), Image.Resampling.LANCZOS)) for im in images]))
         x = (x.to(dev).permute(0, 3, 1, 2).float() / 255 - MEAN.to(dev)) / STD.to(dev)
         inner = round(size / pad)
         framed = torch.zeros_like(x)  # zero is the mean colour once normalised
@@ -93,7 +93,7 @@ def sheet(labels: Path, afhq: Path, out: Path, layout: SheetLayout | None = None
     for j, i in enumerate(pick):
         image = Image.open(afhq / z["ids"][i]).convert("RGB")
         scale = side / image.size[0]
-        image = image.resize((side, side), Image.LANCZOS)
+        image = image.resize((side, side), Image.Resampling.LANCZOS)
         draw = ImageDraw.Draw(image)
         for (x, y), colour in zip((z["points"][i] + 0.5) * scale - 0.5, COLOURS, strict=True):
             draw.ellipse((x - 4, y - 4, x + 4, y + 4), fill=colour, outline=(0, 0, 0))

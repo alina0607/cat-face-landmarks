@@ -91,7 +91,7 @@ def identity(n: int) -> torch.Tensor:
 def apply(images: torch.Tensor, theta: torch.Tensor, size: int) -> torch.Tensor:
     """Resample (B, C, H, W) images through the maps into (B, C, size, size), bilinear, edges repeated."""
     grid = F.affine_grid(
-        theta.to(images.device, images.dtype), (images.shape[0], images.shape[1], size, size), align_corners=False
+        theta.to(images.device, images.dtype), [images.shape[0], images.shape[1], size, size], align_corners=False
     )
     return F.grid_sample(images, grid, mode="bilinear", padding_mode="border", align_corners=False)
 

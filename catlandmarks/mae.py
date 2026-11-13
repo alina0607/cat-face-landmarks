@@ -53,6 +53,8 @@ def random_masking(
 
 
 class MAE(nn.Module):
+    decoder_pos: torch.Tensor  # registered as a buffer in __init__
+
     def __init__(self, cfg: MAEConfig):
         super().__init__()
         self.cfg = cfg

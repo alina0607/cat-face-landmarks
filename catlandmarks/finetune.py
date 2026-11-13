@@ -16,6 +16,7 @@ import math
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import TypedDict
 
 import numpy as np
 import torch
@@ -27,6 +28,9 @@ from .pretrain import MEAN, STD, device
 from .vit import ViTConfig
 
 EVAL_BATCH = 128
+
+# What `summary` returns; one key is not an identifier, hence the functional form.
+Summary = TypedDict("Summary", {"nme": float, "failure_rate_0.1": float, "nme_per_landmark": dict[str, float]})
 
 
 @dataclass
@@ -116,7 +120,7 @@ def errors(
     return torch.cat(out)
 
 
-def summary(err: torch.Tensor) -> dict[str, object]:
+def summary(err: torch.Tensor) -> Summary:
     per_face = err.mean(1)
     return {
         "nme": round(per_face.mean().item(), 4),

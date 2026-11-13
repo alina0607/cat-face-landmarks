@@ -70,7 +70,7 @@ class ImagePool:
         return np.concatenate(out)
 
 
-def to_input(batch: np.ndarray, dev: torch.device) -> torch.Tensor:
+def to_input(batch: np.ndarray, dev: torch.device | str) -> torch.Tensor:
     x = torch.from_numpy(batch).to(dev).permute(0, 3, 1, 2).float() / 255
     return (x - MEAN.to(dev)) / STD.to(dev)
 

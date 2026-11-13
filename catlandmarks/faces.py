@@ -42,8 +42,10 @@ def crop(image: Image.Image, box: Box, size: int) -> tuple[np.ndarray, float]:
     # PIL maps continuous output coordinates (u, v) to input (scale·u + left, scale·v + top)
     coeffs = (scale, 0.0, left, 0.0, scale, top)
     fill = tuple(int(c) for c in np.asarray(image).reshape(-1, 3).mean(0))
-    out = image.transform((size, size), Image.AFFINE, coeffs, resample=Image.BICUBIC, fillcolor=fill)
-    inside = Image.new("L", image.size, 255).transform((size, size), Image.AFFINE, coeffs, fillcolor=0)
+    out = image.transform(
+        (size, size), Image.Transform.AFFINE, coeffs, resample=Image.Resampling.BICUBIC, fillcolor=fill
+    )
+    inside = Image.new("L", image.size, 255).transform((size, size), Image.Transform.AFFINE, coeffs, fillcolor=0)
     return np.asarray(out), float(np.asarray(inside).mean() / 255)
 
 
